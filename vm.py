@@ -1,5 +1,6 @@
 import pygame
 import threading
+import struct
 from spritesurface import SpriteSurface
 
 MAX_BANKS = 32
@@ -36,7 +37,6 @@ class Runtime:
         and stop all threads."""
         for thread in self.threads:
             thread.stop()
-            thread.join()
         self.threads.clear()
 
 
@@ -66,16 +66,13 @@ class VMThread(threading.Thread):
                 for operand in op.operands:
                     if operand == REGINT:
                         newpc += 1
-                        args.append(self.regints[self.code[newpc]])
+                        args.append(self.code[newpc])
                     elif operand == REGSTR:
                         newpc += 1
-                        args.append(self.regstrs[self.code[newpc]])
+                        args.append(self.code[newpc])
                     elif operand == LITINT:
-                        newpc += 2
-                        args.append((self.code[newpc + 3] << 24)
-                                    | self.code[newpc + 2] << 16
-                                    | self.code[newpc + 1] << 8
-                                    | self.code[newpc])
+                        newpc += 4
+                        args.append(struct.unpack("I", self.code[newpc-3:newpc+1])[0])
                     elif operand == LITSTR:
                         new_str = bytearray()
                         # Buffer overrun problem - but I'll let it happen.
@@ -83,9 +80,12 @@ class VMThread(threading.Thread):
                             new_str.append(self.code[newpc])
                             newpc += 1
                         args.append(new_str.decode("utf-8"))
+                # print(f"{self.pc}: {op.__name__}({args})")
+                self.pc = newpc
+                op.__call__(self, *args)
             else:
                 print("Opcode {0} not found".format(self.code[self.pc]))
-            self.pc = newpc + 1
+            self.pc += 1
 
     def stop(self):
         self.running = False
@@ -120,7 +120,7 @@ class VMThread(threading.Thread):
 
     def ret(self):
         """Return from a procedure."""
-        self.pc = self.call_stack.pop() - 1
+        self.pc = self.call_stack.pop()
     ret.operands = []
 
     def call(self, litint_procedure: int):
@@ -289,6 +289,13 @@ class VMThread(threading.Thread):
         """Jump to procedure."""
         self.pc = litint - 1
     jmp.operands = [LITINT]
+
+    @staticmethod
+    def op_name(op):
+        try:
+            return op.asm_name
+        except AttributeError:
+            return op.__name__
 
     opcodes = {
         0x00: reset,

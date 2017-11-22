@@ -1,0 +1,14 @@
+; Test 1
+
+set i1  1
+hello:
+    pushi   i1
+    call    @hello2
+    jmp     @hello
+
+hello2:
+    popi    i2
+    set     i3  1
+    add     i2  i3
+    set     i1  i2
+    ret

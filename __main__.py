@@ -15,7 +15,9 @@ class GraphicalDemo:
 
         self.clock = pygame.time.Clock()
 
-        self.runtime = Runtime(self.window)
+        with open("test1.out", "rb") as file:
+            self.runtime = Runtime(self.window, file.read())
+
         self.running = False
 
     def poll_events(self):
