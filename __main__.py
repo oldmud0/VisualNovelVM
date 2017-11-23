@@ -15,7 +15,7 @@ class GraphicalDemo:
 
         self.clock = pygame.time.Clock()
 
-        with open("test1.out", "rb") as file:
+        with open("test.out", "rb") as file:
             self.runtime = Runtime(self.window, file.read())
 
         self.running = False

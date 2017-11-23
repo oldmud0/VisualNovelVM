@@ -43,9 +43,9 @@ with open(args.input[0]) as file:
     # Scan for opcodes
     for line_no, line in enumerate(lines):
         if args.verbose >= 2:
-            print(f"{line_no}/{len(output)}: {line[:-1]}")
+            print(f"{line_no}/{len(output)}: {line.strip()}")
         line.strip()
-        tokens = list(shlex.split(line))
+        tokens = list(shlex.split(line, comments=True))
 
         # Strip semicolon comments
         try:
@@ -89,14 +89,15 @@ with open(args.input[0]) as file:
                                 raise AssemblyError(line_no, f"{token} is not a register")
                             buffer.append(int(token[1:]))
                         elif operand_type == vm.LITINT:
-                            if not token.isnumeric():
+                            try:
+                                token_int = int(token)
+                                buffer.extend(struct.pack("i", token_int))
+                            except ValueError:
                                 if token[0] == '@':
                                     procedure_refs.append((len(output) + len(buffer), token[1:]))
                                     buffer.extend(struct.pack("I", 0))
                                 else:
                                     raise AssemblyError(line_no, f"{token} is not a number or procedure")
-                            else:
-                                buffer.extend(struct.pack("I", int(token)))
                         elif operand_type == vm.REGSTR:
                             if not token[1:].isnumeric() or not token[0] == 's':
                                 raise AssemblyError(line_no, f"{token} is not a register")

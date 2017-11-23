@@ -74,6 +74,7 @@ class VMThread(threading.Thread):
                         newpc += 4
                         args.append(struct.unpack("I", self.code[newpc-3:newpc+1])[0])
                     elif operand == LITSTR:
+                        newpc += 1
                         new_str = bytearray()
                         # Buffer overrun problem - but I'll let it happen.
                         while self.code[newpc] != 0x0:
@@ -93,6 +94,7 @@ class VMThread(threading.Thread):
     def reset(self):
         """Reset state, unload all sprite banks,
         and stop all threads."""
+        self.running = False
         self.global_state.reset()
     reset.operands = []
 
@@ -239,7 +241,7 @@ class VMThread(threading.Thread):
 
     def subr(self, regint1: int, regint2: int):
         """Subtract regint2 from regint1."""
-        self.regints[regint1] += self.regints[regint2]
+        self.regints[regint1] -= self.regints[regint2]
     subr.operands = [REGINT, REGINT]
     subr.asm_name = "sub"
 
@@ -247,7 +249,7 @@ class VMThread(threading.Thread):
         """Concatenate literal string to string register."""
         self.regstrs[regstr] += litstr
     concatl.operands = [REGSTR, LITSTR]
-    concatl.asm_name = "concat"
+    concatl.asm_name = "concatl"
 
     def concatr(self, regstr1: int, regstr2: int):
         """Concatenate regstr2 to regstr1."""
@@ -290,6 +292,54 @@ class VMThread(threading.Thread):
         self.pc = litint - 1
     jmp.operands = [LITINT]
 
+    def castis(self, regint: int, regstr: int):
+        """Cast an integer into a string."""
+        self.regstrs[regstr] = str(self.regints[regint])
+    castis.operands = [REGINT, REGSTR]
+    castis.asm_name = "cast"
+
+    def dbgs(self, regstr: int):
+        """Debug print a string."""
+        print(self.regstrs[regstr])
+    dbgs.operands = [REGSTR]
+    dbgs.asm_name = "dbg"
+
+    def dbgi(self, regint: int):
+        """Debug print an integer."""
+        print(self.regints[regint])
+    dbgi.operands = [REGINT]
+    dbgi.asm_name = "dbg"
+
+    def addl(self, regint: int, litint: int):
+        self.regints[regint] += litint
+    addl.operands = [REGINT, LITINT]
+    addl.asm_name = "add"
+
+    def subl(self, regint: int, litint: int):
+        self.regints[regint] -= litint
+    subl.operands = [REGINT, LITINT]
+    subl.asm_name = "sub"
+
+    def mull(self, regint: int, litint: int):
+        self.regints[regint] *= litint
+    mull.operands = [REGINT, LITINT]
+    mull.asm_name = "mul"
+
+    def mulr(self, regint: int, regint2: int):
+        self.regints[regint] *= self.regints[regint2]
+    mulr.operands = [REGINT, REGINT]
+    mulr.asm_name = "mul"
+
+    def divl(self, regint: int, litint: int):
+        self.regints[regint] = int(self.regints[regint] / litint)
+    divl.operands = [REGINT, LITINT]
+    divl.asm_name = "div"
+
+    def divr(self, regint: int, regint2: int):
+        self.regints[regint] = int(self.regints[regint] / self.regints[regint2])
+    divr.operands = [REGINT, REGINT]
+    divr.asm_name = "div"
+
     @staticmethod
     def op_name(op):
         try:
@@ -331,4 +381,13 @@ class VMThread(threading.Thread):
         0x1e: je,
         0x1f: jg,
         0x20: jmp,
+        0x21: castis,
+        0x22: dbgs,
+        0x23: dbgi,
+        0x24: addl,
+        0x25: subl,
+        0x26: mull,
+        0x27: mulr,
+        0x28: divl,
+        0x29: divr
     }

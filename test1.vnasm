@@ -1,14 +1,23 @@
-; Test 1
+; Test 1 - pushi, call/ret, cmp/jmp, dbg
+; Prints multiples of 64 in some convoluted way.
 
 set i1  1
+set i7  64
+set i6  1
+set i3  1
 hello:
     pushi   i1
     call    @hello2
+    add     i6  i3
+    cmp     i7  i6
+    jg      @print_skip
+    dbg     i1
+    set     i6  0
+print_skip:
     jmp     @hello
 
 hello2:
     popi    i2
-    set     i3  1
     add     i2  i3
     set     i1  i2
     ret
