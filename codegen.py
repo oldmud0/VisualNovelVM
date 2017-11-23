@@ -84,11 +84,7 @@ with open(args.input[0]) as file:
                 try:
                     operands = interpretation[1].operands
                     for token, operand_type in zip(tokens[1:], operands):
-                        if operand_type == vm.REGINT:
-                            if not token[1:].isnumeric() or not token[0] == 'i':
-                                raise AssemblyError(line_no, f"{token} is not a register")
-                            buffer.append(int(token[1:]))
-                        elif operand_type == vm.LITINT:
+                        if operand_type == vm.LITINT:
                             try:
                                 token_int = int(token)
                                 buffer.extend(struct.pack("i", token_int))
@@ -98,10 +94,6 @@ with open(args.input[0]) as file:
                                     buffer.extend(struct.pack("I", 0))
                                 else:
                                     raise AssemblyError(line_no, f"{token} is not a number or procedure")
-                        elif operand_type == vm.REGSTR:
-                            if not token[1:].isnumeric() or not token[0] == 's':
-                                raise AssemblyError(line_no, f"{token} is not a register")
-                            buffer.append(int(token[1:]))
                         elif operand_type == vm.LITSTR:
                             buffer.extend(token.encode("utf-8"))
                             buffer.append(0)

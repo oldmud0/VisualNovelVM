@@ -1,0 +1,11 @@
+; Test 3
+; Hopefully a much simpler example.
+
+pushi 20
+loop:
+    dbgi
+    pushi 1
+    sub
+    dupi
+    jg @loop
+reset

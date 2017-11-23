@@ -4,12 +4,9 @@ import struct
 from spritesurface import SpriteSurface
 
 MAX_BANKS = 32
-MAX_REGISTERS = 8
 
-REGINT = 0
-REGSTR = 1
-LITINT = 2
-LITSTR = 3
+LITINT = 0
+LITSTR = 1
 
 
 class Runtime:
@@ -51,10 +48,7 @@ class VMThread(threading.Thread):
         self.str_stack = []
         self.int_stack = []
         self.call_stack = []
-        self.regints = [0] * MAX_REGISTERS
-        self.regstrs = [""] * MAX_REGISTERS
         self.attr_list = dict()
-        self.comparator = 0
         self.running = True
 
     def run(self):
@@ -64,13 +58,7 @@ class VMThread(threading.Thread):
             if op is not None:
                 args = []
                 for operand in op.operands:
-                    if operand == REGINT:
-                        newpc += 1
-                        args.append(self.code[newpc])
-                    elif operand == REGSTR:
-                        newpc += 1
-                        args.append(self.code[newpc])
-                    elif operand == LITINT:
+                    if operand == LITINT:
                         newpc += 4
                         args.append(struct.unpack("I", self.code[newpc-3:newpc+1])[0])
                     elif operand == LITSTR:
@@ -98,17 +86,17 @@ class VMThread(threading.Thread):
         self.global_state.reset()
     reset.operands = []
 
-    def loadspr(self, regstr_vpath: int, regint_banknum: int):
+    def loadspr(self):
         """Load a sprite located in a virtual path into a bank."""
-        vpath = self.regstrs[regstr_vpath]
-        banknum = self.regints[regint_banknum]
+        vpath = self.int_stack.pop()
+        banknum = self.int_stack.pop()
         self.sprite_bank[banknum] = SpriteSurface(vpath)
-    loadspr.operands = [REGSTR, REGINT]
+    loadspr.operands = []
 
-    def unloadspr(self, regint_banknum: int):
+    def unloadspr(self):
         """Unload the sprite in a bank."""
-        self.sprite_bank[self.regints[regint_banknum]] = None
-    unloadspr.operands = [REGINT]
+        self.sprite_bank[self.int_stack.pop()] = None
+    unloadspr.operands = []
 
     def fork(self, litint_procedure: int):
         """Fork the execution state into another procedure such that
@@ -131,30 +119,20 @@ class VMThread(threading.Thread):
         self.pc = litint_procedure - 1
     call.operands = [LITINT]
 
-    def pushs(self, regstr: int):
+    def pushs(self, litstr: str):
         """Push a string register into the string stack."""
-        self.str_stack.append(self.regstrs[regstr])
-    pushs.operands = [REGSTR]
+        self.str_stack.append(litstr)
+    pushs.operands = [LITSTR]
 
-    def pops(self, regstr: int):
-        """Pop a string from the string stack into a string register."""
-        self.regstrs[regstr] = self.str_stack.pop()
-    pops.operands = [REGSTR]
-
-    def pushi(self, regint: int):
+    def pushi(self, litint: int):
         """Push an integer register into the integer stack."""
-        self.int_stack.append(self.regints[regint])
-    pushi.operands = [REGINT]
+        self.int_stack.append(litint)
+    pushi.operands = [LITINT]
 
-    def popi(self, regint: int):
-        """Pop an integer into a string register."""
-        self.regints[regint] = self.int_stack.pop()
-    popi.operands = [REGINT]
-
-    def waitms(self, regint_millsecs: int):
+    def waitms(self, litint_ms: int):
         """Delay this execution thread by a given number of milliseconds."""
         pass
-    waitms.operands = [REGINT]
+    waitms.operands = [LITINT]
     waitms.asm_name = "wait"
 
     def waithook(self, litstr_hookname: str):
@@ -170,120 +148,63 @@ class VMThread(threading.Thread):
         pass
     fire.operands = [LITSTR]
 
-    def say(self, regint_char_banknum: int, regstr_message: int):
+    def say(self):
         """Call a 'say' procedure for the given character."""
         pass
-    say.operands = [REGINT, REGSTR]
+    say.operands = []
 
-    def setls(self, regstr: int, litstr: str):
-        """Set a string register to a literal value."""
-        self.regstrs[regstr] = litstr
-    setls.operands = [REGSTR, LITSTR]
-    setls.asm_name = "set"
-
-    def setli(self, regint: int, litint: int):
-        """Set an integer register to a literal value."""
-        self.regints[regint] = litint
-    setli.operands = [REGINT, LITINT]
-    setli.asm_name = "set"
-
-    def setrs(self, regstr1: int, regstr2: int):
-        """Set string register 1 to string register 2."""
-        self.regstrs[regstr1] = self.regstrs[regstr2]
-    setrs.operands = [REGSTR, REGSTR]
-    setrs.asm_name = "set"
-
-    def setri(self, regint1: int, regint2: int):
-        """Set integer register 1 to integer register 2."""
-        self.regints[regint1] = self.regints[regint2]
-    setri.operands = [REGINT, REGINT]
-    setri.asm_name = "set"
-
-    def show(self, regint_banknum: int, regint_alpha):
+    def show(self):
         """Set the alpha of a sprite.
         Attributes: 'fade' (any int >= 0) """
-        self.sprite_bank[self.regints[regint_banknum]].alpha = self.regints[regint_alpha]
-    show.operands = [REGINT, REGINT]
+        self.sprite_bank[self.int_stack.pop()].alpha = self.int_stack.pop()
+    show.operands = []
 
-    def layer(self, regint_banknum: int, regint_layer):
+    def layer(self):
         """Set the z-order/layer number of a sprite.
         Higher is more priority."""
         pass
-    layer.operands = [REGINT, REGINT]
+    layer.operands = []
 
-    def attri(self, litstr_attribute_name: str, regint_attribute_value: int):
+    def attri(self):
         """Append an attribute/modifier to the next applicable operation
         with an integer value."""
-        self.attr_list[litstr_attribute_name] = self.regints[regint_attribute_value]
-    attri.operands = [LITSTR, REGINT]
-    attri.asm_name = "attr"
+        self.attr_list[self.str_stack.pop()] = self.int_stack.pop()
+    attri.operands = []
 
-    def attrs(self, litstr_attribute_name: str, regstr_attribute_value: int):
+    def attrs(self):
         """Append an attribute/modifier to the next applicable operation
         with a string value."""
-        self.attr_list[litstr_attribute_name] = self.regstrs[regstr_attribute_value]
-    attrs.operands = [LITSTR, REGSTR]
-    attrs.asm_name = "attr"
+        self.attr_list[self.str_stack.pop()] = self.str_stack.pop()
+    attrs.operands = []
 
-    def openbank(self, regint_banknum: int):
-        """Return the number of an open bank slot into a specified register."""
+    def openbank(self):
+        """Return the number of an open bank slot."""
         for index, bank in enumerate(self.sprite_bank):
             if bank is None:
-                self.regints[regint_banknum] = index
+                self.int_stack.append(index)
                 return
-    openbank.operands = [REGINT]
+    openbank.operands = []
 
-    def addr(self, regint1: int, regint2: int):
-        """Add regint2 to regint1."""
-        self.regints[regint1] += self.regints[regint2]
-    addr.operands = [REGINT, REGINT]
-    addr.asm_name = "add"
-
-    def subr(self, regint1: int, regint2: int):
-        """Subtract regint2 from regint1."""
-        self.regints[regint1] -= self.regints[regint2]
-    subr.operands = [REGINT, REGINT]
-    subr.asm_name = "sub"
-
-    def concatl(self, regstr: int, litstr: str):
-        """Concatenate literal string to string register."""
-        self.regstrs[regstr] += litstr
-    concatl.operands = [REGSTR, LITSTR]
-    concatl.asm_name = "concatl"
-
-    def concatr(self, regstr1: int, regstr2: int):
-        """Concatenate regstr2 to regstr1."""
-        self.regstrs[regstr1] += self.regstrs[regstr2]
-    concatr.operands = [REGSTR, REGSTR]
-    concatr.asm_name = "concat"
-
-    def cmp_iil(self, regint: int, litint: int):
-        """Compare an integer register to a literal integer numerically."""
-        self.comparator = self.regints[regint] - litint
-    cmp_iil.operands = [REGINT, LITINT]
-    cmp_iil.asm_name = "cmp"
-
-    def cmp_iir(self, regint1: int, regint2: int):
-        """Compare regint1 to regint2 numerically."""
-        self.comparator = self.regints[regint1] - self.regints[regint2]
-    cmp_iir.operands = [REGINT, REGINT]
-    cmp_iir.asm_name = "cmp"
+    def concat(self):
+        """Concatenate two strings."""
+        self.str_stack.append(self.str_stack.pop(-2) + self.str_stack.pop())
+    concat.operands = []
 
     def jl(self, litint: int):
-        """Jump to procedure if comparison is less than 0."""
-        if self.comparator < 0:
+        """Jump to procedure if top is less than 0."""
+        if self.int_stack.pop() < 0:
             self.pc = litint - 1
     jl.operands = [LITINT]
 
     def je(self, litint: int):
-        """Jump to procedure if comparison is equal to 0."""
-        if self.comparator == 0:
+        """Jump to procedure if top is equal to 0."""
+        if self.int_stack.pop() == 0:
             self.pc = litint - 1
     je.operands = [LITINT]
 
     def jg(self, litint: int):
-        """Jump to procedure if comparison is greater than 0."""
-        if self.comparator > 0:
+        """Jump to procedure if top is greater than 0."""
+        if self.int_stack.pop() > 0:
             self.pc = litint - 1
     jg.operands = [LITINT]
 
@@ -292,53 +213,53 @@ class VMThread(threading.Thread):
         self.pc = litint - 1
     jmp.operands = [LITINT]
 
-    def castis(self, regint: int, regstr: int):
+    def castis(self):
         """Cast an integer into a string."""
-        self.regstrs[regstr] = str(self.regints[regint])
-    castis.operands = [REGINT, REGSTR]
+        self.str_stack = str(self.int_stack.pop())
+    castis.operands = []
     castis.asm_name = "cast"
 
-    def dbgs(self, regstr: int):
+    def dbgs(self):
         """Debug print a string."""
-        print(self.regstrs[regstr])
-    dbgs.operands = [REGSTR]
-    dbgs.asm_name = "dbg"
+        print(self.str_stack[-1])
+    dbgs.operands = []
+    dbgs.asm_name = "dbgs"
 
-    def dbgi(self, regint: int):
+    def dbgi(self):
         """Debug print an integer."""
-        print(self.regints[regint])
-    dbgi.operands = [REGINT]
-    dbgi.asm_name = "dbg"
+        print(self.int_stack[-1])
+    dbgi.operands = []
+    dbgi.asm_name = "dbgi"
 
-    def addl(self, regint: int, litint: int):
-        self.regints[regint] += litint
-    addl.operands = [REGINT, LITINT]
-    addl.asm_name = "add"
+    def add(self):
+        self.int_stack.append(self.int_stack.pop() + self.int_stack.pop())
+    add.operands = []
+    add.asm_name = "add"
 
-    def subl(self, regint: int, litint: int):
-        self.regints[regint] -= litint
-    subl.operands = [REGINT, LITINT]
-    subl.asm_name = "sub"
+    def sub(self):
+        self.int_stack.append(self.int_stack.pop(-2) - self.int_stack.pop())
+    sub.operands = []
+    sub.asm_name = "sub"
 
-    def mull(self, regint: int, litint: int):
-        self.regints[regint] *= litint
-    mull.operands = [REGINT, LITINT]
-    mull.asm_name = "mul"
+    def mul(self):
+        self.int_stack.append(self.int_stack.pop() * self.int_stack.pop())
+    mul.operands = []
+    mul.asm_name = "mul"
 
-    def mulr(self, regint: int, regint2: int):
-        self.regints[regint] *= self.regints[regint2]
-    mulr.operands = [REGINT, REGINT]
-    mulr.asm_name = "mul"
+    def div(self):
+        self.int_stack.append(int(self.int_stack.pop(-2) / self.int_stack.pop()))
+    div.operands = []
+    div.asm_name = "div"
 
-    def divl(self, regint: int, litint: int):
-        self.regints[regint] = int(self.regints[regint] / litint)
-    divl.operands = [REGINT, LITINT]
-    divl.asm_name = "div"
+    def dups(self):
+        """Duplicate the top of the string stack."""
+        self.str_stack.append(self.str_stack[-1])
+    dups.operands = []
 
-    def divr(self, regint: int, regint2: int):
-        self.regints[regint] = int(self.regints[regint] / self.regints[regint2])
-    divr.operands = [REGINT, REGINT]
-    divr.asm_name = "div"
+    def dupi(self):
+        """Duplicate the top of the integer stack."""
+        self.int_stack.append(self.int_stack[-1])
+    dupi.operands = []
 
     @staticmethod
     def op_name(op):
@@ -355,28 +276,17 @@ class VMThread(threading.Thread):
         0x04: ret,
         0x05: call,
         0x06: pushs,
-        0x07: pops,
         0x08: pushi,
-        0x09: popi,
         0x0a: waitms,
         0x0b: waithook,
         0x0c: fire,
         0x0d: say,
-        0x0e: setls,
-        0x0f: setli,
-        0x10: setrs,
-        0x11: setri,
         0x12: show,
         0x13: layer,
         0x14: attri,
         0x15: attrs,
         0x16: openbank,
-        0x17: addr,
-        0x18: subr,
-        0x19: concatl,
-        0x1a: concatr,
-        0x1b: cmp_iil,
-        0x1c: cmp_iir,
+        0x19: concat,
         0x1d: jl,
         0x1e: je,
         0x1f: jg,
@@ -384,10 +294,10 @@ class VMThread(threading.Thread):
         0x21: castis,
         0x22: dbgs,
         0x23: dbgi,
-        0x24: addl,
-        0x25: subl,
-        0x26: mull,
-        0x27: mulr,
-        0x28: divl,
-        0x29: divr
+        0x24: add,
+        0x25: sub,
+        0x26: mul,
+        0x27: div,
+        0x28: dups,
+        0x28: dupi,
     }
