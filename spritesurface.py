@@ -2,20 +2,21 @@ import pygame, re
 
 
 
-class SpriteSurface(pygame.surface.Surface):
+class SpriteSurface(pygame.sprite.Sprite):
 
     def __init__(self, path : str):
-        pygame.surface.Surface.__init__(self)
+        super().__init__()
         self._images = dict()
         with open(path) as file:
-            for image in re.finditer("^.+=.+$", file.read(), re.MULTILINE):
+            for image in re.finditer("^(.+)=(.+)$", file.read(), re.MULTILINE):
                 try:
-                    self._images[image[0]] = pygame.image.load(image[1])
+                    self._images[image[1]] = pygame.image.load(image[2])
                 except IOError:
                     print("Couldn't load image {0} at path {1}.".format(image[0], image[1]))
         self._anim_name = "default"
-        self.image = self._images[self._anim_name]
         self._alpha = 255
+        self.image = self._images[self._anim_name]
+        self.rect = self.image.get_rect()
 
     @property
     def alpha(self):

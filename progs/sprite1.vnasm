@@ -1,0 +1,28 @@
+; Mouth-flapping test
+
+pushs "sprites/judge.ini"
+
+openbank
+dupi               ; keep bank # on stack
+loadspr
+
+pushi 1            ; boolean value
+talk_loop:
+    je @set_normal ; only if 0
+set_talk:
+    pushs "talking"
+    pushi 0        ; push the opposite
+    swapi          ; keep bank # on top
+    jmp @set_spr
+set_normal:
+    pushs "default"
+    pushi 1        ; push the opposite
+    swapi          ; keep bank # on top
+set_spr:
+    dupi           ; preserve bank #
+    setspr
+    swapi          ; put new bank # behind boolean
+    wait 100
+    jmp @talk_loop
+
+reset

@@ -1,6 +1,7 @@
 import pygame
 import threading
 import struct
+from time import sleep
 from spritesurface import SpriteSurface
 
 MAX_BANKS = 32
@@ -14,6 +15,7 @@ class Runtime:
         self.window = window
         self.code = code
         self.sprite_bank = [None] * MAX_BANKS
+        self.sprites = pygame.sprite.LayeredUpdates()
         self.threads = []
 
     def start(self):
@@ -23,6 +25,9 @@ class Runtime:
         thread = VMThread(self)
         thread.start()
         self.threads.append(thread)
+
+    def draw(self):
+        self.sprites.draw(self.window)
 
     def _call_fork(self, pc):
         thread = VMThread(self, pc=pc)
@@ -44,6 +49,7 @@ class VMThread(threading.Thread):
         self.global_state = global_state
         self.sprite_bank = global_state.sprite_bank
         self.code = global_state.code
+        self.sprites = global_state.sprites
         self.pc = pc
         self.str_stack = []
         self.int_stack = []
@@ -71,7 +77,12 @@ class VMThread(threading.Thread):
                         args.append(new_str.decode("utf-8"))
                 # print(f"{self.pc}: {op.__name__}({args})")
                 self.pc = newpc
-                op.__call__(self, *args)
+                try:
+                    op.__call__(self, *args)
+                except Exception as e:
+                    print(f"Core dumped! PC: {self.pc}, ints: {self.int_stack}, strs: {self.str_stack}")
+                    self.reset()
+                    raise e
             else:
                 print("Opcode {0} not found".format(self.code[self.pc]))
             self.pc += 1
@@ -88,14 +99,18 @@ class VMThread(threading.Thread):
 
     def loadspr(self):
         """Load a sprite located in a virtual path into a bank."""
-        vpath = self.int_stack.pop()
+        vpath = self.str_stack.pop()
         banknum = self.int_stack.pop()
-        self.sprite_bank[banknum] = SpriteSurface(vpath)
+        newsprite = SpriteSurface(vpath)
+        self.sprite_bank[banknum] = newsprite
+        self.sprites.add(newsprite)
     loadspr.operands = []
 
     def unloadspr(self):
         """Unload the sprite in a bank."""
-        self.sprite_bank[self.int_stack.pop()] = None
+        index = self.int_stack.pop()
+        self.sprites.remove(self.sprite_bank[index])
+        self.sprite_bank[index] = None
     unloadspr.operands = []
 
     def fork(self, litint_procedure: int):
@@ -131,7 +146,7 @@ class VMThread(threading.Thread):
 
     def waitms(self, litint_ms: int):
         """Delay this execution thread by a given number of milliseconds."""
-        pass
+        sleep(litint_ms * .001)
     waitms.operands = [LITINT]
     waitms.asm_name = "wait"
 
@@ -153,11 +168,11 @@ class VMThread(threading.Thread):
         pass
     say.operands = []
 
-    def show(self):
+    def alpha(self):
         """Set the alpha of a sprite.
         Attributes: 'fade' (any int >= 0) """
         self.sprite_bank[self.int_stack.pop()].alpha = self.int_stack.pop()
-    show.operands = []
+    alpha.operands = []
 
     def layer(self):
         """Set the z-order/layer number of a sprite.
@@ -261,6 +276,21 @@ class VMThread(threading.Thread):
         self.int_stack.append(self.int_stack[-1])
     dupi.operands = []
 
+    def setspr(self):
+        """Set the specific image of a sprite."""
+        self.sprite_bank[self.int_stack.pop()].anim_name = self.str_stack.pop()
+    setspr.operands = []
+
+    def swaps(self):
+        """Swap the top and second-top stack elements."""
+        self.str_stack.append(self.str_stack.pop(-2))
+    swaps.operands = []
+
+    def swapi(self):
+        """Swap the top and second-top stack elements."""
+        self.int_stack.append(self.int_stack.pop(-2))
+    swapi.operands = []
+
     @staticmethod
     def op_name(op):
         try:
@@ -281,7 +311,7 @@ class VMThread(threading.Thread):
         0x0b: waithook,
         0x0c: fire,
         0x0d: say,
-        0x12: show,
+        0x12: alpha,
         0x13: layer,
         0x14: attri,
         0x15: attrs,
@@ -299,5 +329,8 @@ class VMThread(threading.Thread):
         0x26: mul,
         0x27: div,
         0x28: dups,
-        0x28: dupi,
+        0x29: dupi,
+        0x2a: setspr,
+        0x2b: swaps,
+        0x2c: swapi
     }

@@ -2,7 +2,7 @@ import pygame
 from vm import Runtime
 
 
-WINDOW_SIZE = (800, 600)
+WINDOW_SIZE = (640, 480)
 
 class GraphicalDemo:
 
@@ -36,6 +36,7 @@ class GraphicalDemo:
     def loop(self):
         while self.running:
             self.poll_events()
+            self.runtime.draw()
             delta = self.clock.tick(60)
             pygame.display.flip()
         pygame.quit()
